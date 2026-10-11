@@ -1,0 +1,640 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#080d18">
+<title>Aviator Analyzer</title>
+
+<style>
+:root {
+  --bg:#080d18;
+  --panel:#121c2d;
+  --border:#25354c;
+  --text:#f1f5f9;
+  --muted:#9aaac0;
+  --blue:#38bdf8;
+  --green:#4ade80;
+  --orange:#fbbf24;
+  --red:#fb7185;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:14px;
+}
+button,select {font:inherit}
+button {
+  cursor:pointer;
+  border:1px solid var(--border);
+  border-radius:9px;
+  padding:10px;
+  color:var(--text);
+  background:#1c2a40;
+}
+button:disabled {opacity:.5}
+button.primary {background:#0369a1;border-color:#0284c7}
+button.danger {background:#47202a}
+.app {max-width:850px;margin:auto;padding:12px;padding-bottom:24px}
+header {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+h1 {font-size:21px;margin:0}
+h2 {font-size:15px;margin:0 0 12px}
+p {line-height:1.45}
+.sub {font-size:11px;color:var(--muted);margin-top:5px}
+.status {font-size:11px;border-radius:20px;padding:7px 9px;background:#25354c}
+.status.ok {color:var(--green)}
+.status.warn {color:var(--orange)}
+.panel {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:13px;
+  padding:13px;
+  margin-bottom:11px;
+  min-width:0;
+}
+.grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.label {font-size:11px;color:var(--muted);margin-bottom:8px}
+.big {font-size:29px;font-weight:800;letter-spacing:-1px}
+.blue {color:var(--blue)}
+.orange {color:var(--orange)}
+.green {color:var(--green)}
+.red {color:var(--red)}
+.row {display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bar {height:7px;border-radius:10px;background:#29384d;overflow:hidden;flex:1}
+.bar span {display:block;height:100%;background:var(--blue);width:0}
+.probrow {display:flex;align-items:center;gap:8px;margin:13px 0}
+.probrow .target {width:49px;font-weight:bold}
+.probrow .percent {width:42px;text-align:right}
+.small {font-size:11px;color:var(--muted)}
+.camera-box {
+  position:fixed;
+  z-index:10;
+  right:12px;
+  bottom:14px;
+  width:min(46vw,230px);
+  background:#0b1220;
+  border:2px solid var(--blue);
+  border-radius:13px;
+  overflow:hidden;
+  box-shadow:0 8px 28px #000a;
+  touch-action:none;
+}
+.camera-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:8px;
+  font-size:11px;
+  background:#152238;
+  cursor:move;
+  user-select:none;
+}
+#video {
+  display:block;
+  width:100%;
+  aspect-ratio:4/3;
+  object-fit:cover;
+  background:#030712;
+}
+.camera-controls {display:flex;gap:5px;padding:6px}
+.camera-controls button {flex:1;font-size:11px;padding:7px 3px}
+#cameraMessage {padding:0 8px 8px;font-size:10px;color:var(--muted)}
+.actions {display:flex;gap:7px;flex-wrap:wrap}
+.actions button {flex:1}
+#reason {line-height:1.5}
+.history {max-height:155px;overflow:auto}
+.history-item {
+  display:flex;justify-content:space-between;gap:8px;
+  padding:8px 2px;border-bottom:1px solid var(--border)
+}
+input[type=number] {
+  width:90px;background:#080d18;color:white;
+  border:1px solid var(--border);border-radius:7px;padding:8px
+}
+.manual {display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.warning {
+  background:#302716;color:#fde68a;
+  border:1px solid #725523;border-radius:9px;
+  padding:10px;font-size:12px;line-height:1.5
+}
+footer {font-size:10px;color:var(--muted);line-height:1.5;padding:5px 0 12px}
+@media(min-width:700px) {
+  .app {padding:20px}
+  .main-grid {display:grid;grid-template-columns:1fr 1fr;gap:10px}
+}
+</style>
+</head>
+
+<body>
+<main class="app">
+  <header>
+    <div>
+      <h1>✈ AVIATOR ANALYZER</h1>
+      <div class="sub">LIVE CAMERA · OCR · STATISTICAL ANALYSIS</div>
+    </div>
+    <span class="status warn" id="appStatus">CAMERA OFF</span>
+  </header>
+
+  <div class="warning" style="margin-bottom:11px">
+    This app records visible screen data, not the game's internal RNG.
+    Estimates are uncertain and are not guaranteed betting signals.
+  </div>
+
+  <section class="grid">
+    <div class="panel">
+      <div class="label">LAST RECORDED CRASH</div>
+      <div class="big orange" id="lastCrash">—</div>
+      <div class="sub" id="roundCount">0 recorded rounds</div>
+    </div>
+    <div class="panel">
+      <div class="label">LATEST READ MULTIPLIER</div>
+      <div class="big blue" id="liveMultiplier">—</div>
+      <div class="sub" id="readStatus">Waiting for camera</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="row">
+      <h2>Next-round probability estimates</h2>
+      <span class="status" id="sampleStatus">0 samples</span>
+    </div>
+    <div id="probabilities"></div>
+    <div class="sub" id="probNote">
+      Record results to calculate historical frequencies.
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Analysis and reasons</h2>
+    <div id="reason">
+      Start the camera and keep the other phone's multiplier clearly visible.
+      The analyzer needs readable results before it can evaluate the data.
+    </div>
+    <div style="margin-top:12px">
+      <div class="row">
+        <span class="small">Data quality</span>
+        <span id="quality">Not checked</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span class="small">Historical model accuracy</span>
+        <span id="accuracy">Not enough data</span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span class="small">Analysis update</span>
+        <span id="updated">Waiting</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Round history</h2>
+    <div class="manual" style="margin-bottom:12px">
+      <label for="manualValue" class="small">Correct/add result:</label>
+      <input id="manualValue" type="number" min="1" max="100000"
+             step="0.01" placeholder="e.g. 2.41">
+      <button class="primary" id="addManual">Add result</button>
+    </div>
+    <div class="history" id="history">
+      <div class="sub">No rounds recorded yet.</div>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button id="exportBtn">Export CSV</button>
+      <button id="clearBtn" class="danger">Clear history</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Camera and recognition</h2>
+    <div class="actions">
+      <button id="startBtn" class="primary">Start rear camera</button>
+      <button id="stopBtn" disabled>Stop camera</button>
+    </div>
+    <p class="sub">
+      Keep this page open. Recognition uses OCR in your browser.
+      First startup requires an internet connection to load the OCR library.
+    </p>
+    <div id="cameraWarning" class="sub">
+      Allow camera permission when prompted.
+    </div>
+  </section>
+
+  <footer>
+    Historical frequencies are not proof of future outcomes.
+    “Model accuracy” measures past tested estimates, not certainty about
+    the next round. Camera OCR may miss or misread crash multipliers.
+  </footer>
+</main>
+
+<!-- Small movable camera preview -->
+<div class="camera-box" id="cameraBox">
+  <div class="camera-head" id="dragHandle">
+    <span>● LIVE CAMERA</span>
+    <span id="cameraDot">OFF</span>
+  </div>
+  <video id="video" autoplay playsinline muted></video>
+  <div class="camera-controls">
+    <button id="moveBtn">Move box</button>
+    <button id="scanBtn">Scan now</button>
+  </div>
+  <div id="cameraMessage">Point at the second phone.</div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+
+  const targets = [1.5, 2, 5, 10];
+  const STORAGE_KEY = "aviator_analyzer_history_v1";
+
+  let rounds = loadHistory();
+  let stream = null;
+  let worker = null;
+  let scanning = false;
+  let scanTimer = null;
+  let lastAcceptedText = "";
+  let lastAcceptedTime = 0;
+  let previousLive = null;
+  let highestLive = null;
+  let lastLiveTime = 0;
+  let crashCandidate = null;
+  let crashCandidateTime = 0;
+  let workerLoading = false;
+  let manualMove = false;
+  let drag = null;
+  let scanInProgress = false;
+  let qualityScore = null;
+
+  function loadHistory() {
+    try {
+      const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      if (!Array.isArray(value)) return [];
+      return value.filter(x =>
+        x && Number.isFinite(x.value) && x.value >= 1
+      ).slice(-5000);
+    } catch {
+      return [];
+    }
+  }
+
+  function saveHistory() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rounds.slice(-5000)));
+    } catch {
+      $("cameraWarning").textContent =
+        "Browser storage is unavailable or full. Export your history regularly.";
+    }
+  }
+
+  function addRound(value, source = "manual") {
+    value = Number(value);
+    if (!Number.isFinite(value) || value < 1 || value > 100000) return;
+
+    rounds.push({
+      value: Math.round(value * 100) / 100,
+      time: new Date().toISOString(),
+      source
+    });
+
+    if (rounds.length > 5000) rounds = rounds.slice(-5000);
+    saveHistory();
+    render();
+  }
+
+  function formatMultiplier(n) {
+    return Number(n).toFixed(2) + "×";
+  }
+
+  function getValues() {
+    return rounds.map(r => r.value);
+  }
+
+  // Smoothed historical frequency. This is descriptive, not a guarantee.
+  function probabilityFor(target) {
+    const values = getValues();
+    if (!values.length) return null;
+
+    const successes = values.filter(v => v >= target).length;
+    // Mild smoothing avoids displaying exact 0% or 100% from tiny samples.
+    return (successes + 1) / (values.length + 2);
+  }
+
+  // Test historical estimates only against later observed rounds.
+  // A forecast uses prior results, never the result it is tested against.
+  function calculateBacktest(target) {
+    const values = getValues();
+    if (values.length < 30) return null;
+
+    let correct = 0;
+    let total = 0;
+
+    for (let i = 20; i < values.length; i++) {
+      const prior = values.slice(0, i);
+      const successes = prior.filter(v => v >= target).length;
+      const p = (successes + 1) / (prior.length + 2);
+      const predicted = p >= 0.5;
+      const actual = values[i] >= target;
+
+      if (predicted === actual) correct++;
+      total++;
+    }
+
+    return total ? correct / total : null;
+  }
+
+  function renderProbabilities() {
+    const values = getValues();
+    $("probabilities").innerHTML = "";
+
+    targets.forEach(target => {
+      const p = probabilityFor(target);
+      const row = document.createElement("div");
+      row.className = "probrow";
+
+      const label = document.createElement("span");
+      label.className = "target";
+      label.textContent = target.toFixed(2) + "×";
+
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fill = document.createElement("span");
+      fill.style.width = p === null ? "0%" : (p * 100) + "%";
+      bar.appendChild(fill);
+
+      const pct = document.createElement("strong");
+      pct.className = "percent";
+      pct.textContent = p === null ? "—" : Math.round(p * 100) + "%";
+
+      row.append(label, bar, pct);
+      $("probabilities").appendChild(row);
+    });
+
+    $("sampleStatus").textContent = values.length + " samples";
+
+    if (!values.length) {
+      $("probNote").textContent =
+        "No data yet. Add verified results to calculate historical frequencies.";
+    } else if (values.length < 30) {
+      $("probNote").textContent =
+        "Small sample: estimates are unstable. These percentages describe recorded rounds, not a reliable prediction of the next round.";
+    } else {
+      $("probNote").textContent =
+        "Based on " + values.length +
+        " recorded rounds. Assumes the observed history is relevant; that assumption may be false.";
+    }
+  }
+
+  function renderHistory() {
+    const root = $("history");
+    root.innerHTML = "";
+
+    if (!rounds.length) {
+      root.textContent = "No rounds recorded yet.";
+      root.className = "history sub";
+      return;
+    }
+
+    root.className = "history";
+
+    rounds.slice().reverse().slice(0, 100).forEach((r, i) => {
+      const item = document.createElement("div");
+      item.className = "history-item";
+
+      const left = document.createElement("span");
+      left.textContent = "#" + (rounds.length - i) + "  " +
+        formatMultiplier(r.value);
+
+      const right = document.createElement("span");
+      right.className = "small";
+      right.textContent =
+        (r.source === "ocr" ? "Camera" : "Manual") + " · " +
+        new Date(r.time).toLocaleTimeString();
+
+      item.append(left, right);
+      root.appendChild(item);
+    });
+  }
+
+  function renderReason() {
+    const values = getValues();
+    if (!values.length) {
+      $("reason").textContent =
+        "No recorded rounds. Start monitoring or enter verified results.";
+      $("accuracy").textContent = "Not enough data";
+      return;
+    }
+
+    const recent = values.slice(-20);
+    const mean = recent.reduce((a, b) => a + b, 0) / recent.length;
+    const low = recent.filter(v => v < 2).length;
+    const high = recent.filter(v => v >= 2).length;
+
+    let text = "Recorded sample: " + values.length + " rounds. ";
+    text += "The last " + recent.length + " recorded rounds averaged " +
+      mean.toFixed(2) + "×. ";
+    text += low + " of the last " + recent.length +
+      " were below 2×, and " + high + " reached at least 2×. ";
+
+    if (values.length < 30) {
+      text += "The sample is too small for meaningful backtesting. ";
+    } else {
+      text += "The sample is larger, but it may still not represent future rounds. ";
+    }
+
+    text += "A streak or recent average does not establish that the next round is due to be high or low.";
+    $("reason").textContent = text;
+
+    const acc = calculateBacktest(2);
+    $("accuracy").textContent = acc === null
+      ? "Need 30+ results"
+      : Math.round(acc * 100) + "% historical hit rate for a simple 2× test";
+
+    $("roundCount").textContent = values.length + " recorded rounds";
+    $("lastCrash").textContent = values.length
+      ? formatMultiplier(values[values.length - 1]) : "—";
+  }
+
+  function render() {
+    renderProbabilities();
+    renderHistory();
+    renderReason();
+  }
+
+  function setCameraStatus(active, message) {
+    $("appStatus").textContent = active ? "CAMERA ON" : "CAMERA OFF";
+    $("appStatus").className = "status " + (active ? "ok" : "warn");
+    $("cameraDot").textContent = active ? "ON" : "OFF";
+    $("cameraMessage").textContent = message;
+    $("startBtn").disabled = active;
+    $("stopBtn").disabled = !active;
+  }
+
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $("cameraWarning").textContent =
+        "Camera access requires a supported browser and HTTPS. Open the published GitHub Pages address in Chrome.";
+      return;
+    }
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+
+      $("video").srcObject = stream;
+      await $("video").play();
+
+      setCameraStatus(true, "Camera running. Keep the multiplier visible.");
+      $("cameraWarning").textContent =
+        "Camera is active. Keep the page open and prevent the phone from sleeping.";
+
+      await loadOCR();
+      startScanning();
+    } catch (err) {
+      setCameraStatus(false, "Camera could not start.");
+      $("cameraWarning").textContent =
+        "Camera error: " + (err.message || err.name) +
+        ". Check browser permission and try again.";
+    }
+  }
+
+  async function loadOCR() {
+    if (worker || workerLoading) return;
+    workerLoading = true;
+    $("readStatus").textContent = "Loading OCR engine…";
+
+    try {
+      if (!window.Tesseract) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src =
+            "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+          script.onload = resolve;
+          script.onerror = () => reject(new Error("Could not load OCR library"));
+          document.head.appendChild(script);
+        });
+      }
+
+      worker = await Tesseract.createWorker("eng");
+      await worker.setParameters({
+        tessedit_char_whitelist: "0123456789.xX×",
+        preserve_interword_spaces: "1"
+      });
+
+      $("readStatus").textContent = "OCR ready";
+    } catch (err) {
+      $("readStatus").textContent = "OCR failed";
+      $("cameraWarning").textContent =
+        "Could not load OCR. Check your internet connection and reload the page.";
+    } finally {
+      workerLoading = false;
+    }
+  }
+
+  function getCanvasFrame() {
+    const video = $("video");
+    if (!video.videoWidth || !video.videoHeight) return null;
+
+    const canvas = document.createElement("canvas");
+    // Smaller image reduces processing time on mobile phones.
+    const scale = Math.min(1, 800 / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+
+    const ctx = canvas.getContext("2d", {willReadFrequently:true});
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  function imageQuality(canvas) {
+    if (!canvas) return {ok:false, score:null};
+
+    const ctx = canvas.getContext("2d", {willReadFrequently:true});
+    const w = canvas.width, h = canvas.height;
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    let sum = 0, sum2 = 0, count = 0;
+    const step = 20;
+
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) {
+        const i = (y * w + x) * 4;
+        const gray = (data[i] + data[i+1] + data[i+2]) / 3;
+        sum += gray;
+        sum2 += gray * gray;
+        count++;
+      }
+    }
+
+    const avg = sum / Math.max(1, count);
+    const variance = sum2 / Math.max(1, count) - avg * avg;
+
+    // Exposure/contrast warning only; not a true blur detector.
+    const ok = avg > 20 && avg < 238 && variance > 180;
+    return {ok, score:Math.round(variance), avg:Math.round(avg)};
+  }
+
+  function extractMultiplier(text) {
+    // Prefer explicit values such as 2.45x or 2.45×.
+    const cleaned = text.replace(/,/g, ".");
+    const regex = /(\d{1,5}(?:\.\d{1,3})?)\s*[xX×]/g;
+    const found = [];
+    let match;
+
+    while ((match = regex.exec(cleaned)) !== null) {
+      const value = Number(match[1]);
+      if (Number.isFinite(value) && value >= 1 && value <= 100000) {
+        found.push(value);
+      }
+    }
+
+    // Don't guess a multiplier from arbitrary digits if no x is visible.
+    if (!found.length) return null;
+    return found[found.length - 1];
+  }
+
+  async function scanOnce() {
+    if (!stream || !worker || scanInProgress) return;
+    const video = $("video");
+    if (video.readyState < 2) return;
+
+    scanInProgress = true;
+    try {
+      const canvas = getCanvasFrame();
+      if (!canvas) return;
+
+      const q = imageQuality(canvas);
+      qualityScore = q;
+
+      $("quality").textContent = q.ok
+        ? "Image contrast looks usable"
+        : "Poor contrast/lighting possible";
+      $("cameraWarning").textContent = q.ok
+        ? "Image is visible. Keep the multiplier large and clear."
+        : "Image may be too dark, bright, distant or low contrast. Move closer and focus on the game.";
+
+      const result = await worker.recognize(canvas);
+      const text = result.data.text || "";
+      const value = extractMultiplier(text);
+
+      if (value === null) {
+        $("readStatus").textContent = "Multiplier not readable";
+        $("cameraMessage").textContent =
+          "Cannot read multiplier. Adjust distance, focus and angle.";
+        return;
+      }
+
+      $("liveMultiplier").textContent = formatMultiplier(value);
+      $("readStatus").textContent = "Multiplier detected";
+      $("updated").textContent = new Date().toLocaleTimeString();
+      $("cameraMessa
